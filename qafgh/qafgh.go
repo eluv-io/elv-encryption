@@ -52,7 +52,15 @@ func PublicKeyFromBytes(arr []byte) (pk PublicKey, err error) {
 	if err = pk.ga2.SetBytes(arr[:bls12381.G2SizeCompressed]); err != nil {
 		return
 	}
+	if pk.ga2.IsIdentity() {
+		err = fmt.Errorf("Invalid pk ga2: is identitiy")
+		return
+	}
 	if err = pk.za1.UnmarshalBinary(arr[bls12381.G2SizeCompressed:]); err != nil {
+		return
+	}
+	if pk.za1.IsIdentity() {
+		err = fmt.Errorf("Invalid pk za1: is identitiy")
 		return
 	}
 	return
@@ -177,6 +185,18 @@ func EncryptSecondLevel(msg *bls12381.Gt, pk *PublicKey, rand io.Reader) (*Secon
 
 type ReencKey struct {
 	ga1b2 bls12381.G2
+}
+
+func (re *ReencKey) ToBytes() []byte {
+	return re.ga1b2.BytesCompressed()
+}
+
+func ReencKeyFromBytes(b []byte) (re ReencKey, err error) {
+	err = re.ga1b2.SetBytes(b) // checks point is on G2
+	if err == nil && re.ga1b2.IsIdentity() {
+		err = fmt.Errorf("Invalid ReencKey: is identitiy")
+	}
+	return
 }
 
 func NewReencKey(owner *SecretKey, target *PublicKey) ReencKey {
