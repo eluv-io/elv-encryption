@@ -1,6 +1,6 @@
-use blstrs::{G1Projective, G2Affine, G2Projective, Gt, Scalar};
+use bls12_381::{G1Projective, G2Affine, G2Projective, Gt, Scalar};
 
-use group::{ff::Field, prime::PrimeCurveAffine, Curve, Group};
+use group::{ff::Field, Curve, Group};
 use pairing::PairingCurveAffine;
 use rand::RngCore;
 
@@ -16,8 +16,8 @@ pub enum Error {
 }
 
 pub enum EncryptedFor {
-    FirstKey,
-    SecondKey,
+    A1,
+    A2,
 }
 
 pub struct FirstLevelEncryption {
@@ -30,7 +30,7 @@ impl FirstLevelEncryption {
     pub fn encrypt(m: &Gt, pk: &PublicKey, rng: impl RngCore) -> Self {
         let k = Scalar::random(rng);
         Self {
-            enc_for: EncryptedFor::FirstKey,
+            enc_for: EncryptedFor::A1,
             zak: pk.za1 * k,
             mzk: (m + (Gt::generator() * k)),
         }
@@ -38,8 +38,8 @@ impl FirstLevelEncryption {
 
     pub fn decrypt(&self, sk: &SecretKey) -> Result<Gt, Error> {
         let opt_inv_scalar = match self.enc_for {
-            EncryptedFor::FirstKey => sk.a1.invert(),
-            EncryptedFor::SecondKey => sk.a2.invert(),
+            EncryptedFor::A1 => sk.a1.invert(),
+            EncryptedFor::A2 => sk.a2.invert(),
         };
         let inv_scalar = if opt_inv_scalar.is_none().into() {
             return Err(Error::DivideByZero);
@@ -69,7 +69,7 @@ impl SecondLevelEncryption {
         let rkab_affine: G2Affine = reenc_key.ga1b2.to_affine();
         let zbak = self.gk.to_affine().pairing_with(&rkab_affine);
         FirstLevelEncryption {
-            enc_for: EncryptedFor::SecondKey,
+            enc_for: EncryptedFor::A2,
             zak: zbak,
             mzk: self.mzak,
         }
@@ -137,7 +137,6 @@ mod tests {
         let re_enc_key = ReencKey::delegate(&a, &b.pubkey());
         let delegated = second.re_encrypt(&re_enc_key);
         let dec = delegated.decrypt(&b).unwrap();
-
         assert_eq!(msg, dec);
     }
 }
