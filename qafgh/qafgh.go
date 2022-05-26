@@ -5,21 +5,35 @@ import (
 	"io"
 
 	"github.com/cloudflare/circl/ecc/bls12381"
+	"github.com/cloudflare/circl/ecc/bls12381/ff"
 )
 
-func RandomMessage(rand io.Reader) (*bls12381.Gt, error) {
+type Message struct {
+	m bls12381.Gt
+}
+
+func (msg *Message) ToBytes() ([]byte, error) {
+	return msg.m.MarshalBinary()
+}
+
+func MessageFromBytes(b []byte) (m Message, err error) {
+	err = m.m.UnmarshalBinary(b)
+	return
+}
+
+func RandomMessage(rand io.Reader) (*Message, error) {
 	k := bls12381.Scalar{}
 	err := k.Random(rand)
 	if err != nil {
 		return nil, err
 	}
+
 	rg1 := bls12381.G1{}
-	rg1.SetIdentity()
-	rg2 := bls12381.G2{}
-	rg2.SetIdentity()
-	rg2.ScalarMult(&k, &rg2)
+	rg1.ScalarMult(&k, bls12381.G1Generator())
 	// random elem of the form e(g1, g2^k) for random k
-	return bls12381.Pair(&rg1, &rg2), nil
+	return &Message{
+		m: *bls12381.Pair(&rg1, bls12381.G2Generator()),
+	}, nil
 }
 
 type PublicKey struct {
@@ -52,15 +66,7 @@ func PublicKeyFromBytes(arr []byte) (pk PublicKey, err error) {
 	if err = pk.ga2.SetBytes(arr[:bls12381.G2SizeCompressed]); err != nil {
 		return
 	}
-	if pk.ga2.IsIdentity() {
-		err = fmt.Errorf("Invalid pk ga2: is identitiy")
-		return
-	}
 	if err = pk.za1.UnmarshalBinary(arr[bls12381.G2SizeCompressed:]); err != nil {
-		return
-	}
-	if pk.za1.IsIdentity() {
-		err = fmt.Errorf("Invalid pk za1: is identitiy")
 		return
 	}
 	return
@@ -78,11 +84,11 @@ func (sk *SecretKey) ToBytes() ([]byte, error) {
 	return append(b1, b2...), nil
 }
 
+var GTZ = *bls12381.Pair(bls12381.G1Generator(), bls12381.G2Generator())
+
 func (sk *SecretKey) Pubkey() (pk PublicKey) {
-	pk.za1.SetIdentity()
-	pk.za1.Exp(&pk.za1, &sk.a1)
-	pk.ga2.SetIdentity()
-	pk.ga2.ScalarMult(&sk.a2, &pk.ga2)
+	pk.za1.Exp(&GTZ, &sk.a1)
+	pk.ga2.ScalarMult(&sk.a2, bls12381.G2Generator())
 	return
 }
 
@@ -115,7 +121,7 @@ type FirstLevelEncryption struct {
 	mzk    bls12381.Gt
 }
 
-func FirstLevelEncrypt(msg *bls12381.Gt, pk *PublicKey, rand io.Reader) (*FirstLevelEncryption, error) {
+func FirstLevelEncrypt(msg *Message, pk *PublicKey, rand io.Reader) (*FirstLevelEncryption, error) {
 	k := bls12381.Scalar{}
 	err := k.Random(rand)
 	if err != nil {
@@ -126,9 +132,8 @@ func FirstLevelEncrypt(msg *bls12381.Gt, pk *PublicKey, rand io.Reader) (*FirstL
 	zak.Exp(&pk.za1, &k)
 
 	mzk := bls12381.Gt{}
-	mzk.SetIdentity()
-	mzk.Exp(&mzk, &k)
-	mzk.Mul(msg, &mzk)
+	mzk.Exp(&GTZ, &k)
+	mzk.Mul(&msg.m, &mzk)
 	return &FirstLevelEncryption{
 		encFor: EncForA1,
 		zak:    zak,
@@ -136,7 +141,7 @@ func FirstLevelEncrypt(msg *bls12381.Gt, pk *PublicKey, rand io.Reader) (*FirstL
 	}, nil
 }
 
-func (fe *FirstLevelEncryption) Decrypt(sk *SecretKey) (*bls12381.Gt, error) {
+func (fe *FirstLevelEncryption) Decrypt(sk *SecretKey) (*Message, error) {
 	var invS bls12381.Scalar
 	switch fe.encFor {
 	case EncForA1:
@@ -154,18 +159,20 @@ func (fe *FirstLevelEncryption) Decrypt(sk *SecretKey) (*bls12381.Gt, error) {
 	zk.Exp(&fe.zak, &invS)
 	// zk = 1 / (z^k)
 	zk.Inv(&zk)
-	// zk = m z^k/z^k
+	// zk = m z^k/z^k = m
 	zk.Mul(&fe.mzk, &zk)
 
-	return &zk, nil
+	return &Message{m: zk}, nil
 }
+
+const SecondLevelSize = bls12381.G1SizeCompressed + bls12381.GtSize
 
 type SecondLevelEncryption struct {
 	gk   bls12381.G1
 	mzak bls12381.Gt
 }
 
-func EncryptSecondLevel(msg *bls12381.Gt, pk *PublicKey, rand io.Reader) (*SecondLevelEncryption, error) {
+func EncryptSecondLevel(msg *Message, pk *PublicKey, rand io.Reader) (*SecondLevelEncryption, error) {
 	k := bls12381.Scalar{}
 	err := k.Random(rand)
 	if err != nil {
@@ -173,14 +180,35 @@ func EncryptSecondLevel(msg *bls12381.Gt, pk *PublicKey, rand io.Reader) (*Secon
 	}
 
 	gk := bls12381.G1{}
-	gk.SetIdentity()
-	gk.ScalarMult(&k, &gk)
+	gk.ScalarMult(&k, bls12381.G1Generator())
 
+	zak := bls12381.Gt{}
+	zak.Exp(&pk.za1, &k)
 	mzak := bls12381.Gt{}
-	mzak.Exp(&pk.za1, &k)
-	mzak.Mul(msg, &mzak)
+	mzak.Mul(&msg.m, &zak)
 
 	return &SecondLevelEncryption{gk: gk, mzak: mzak}, nil
+}
+
+func (sl *SecondLevelEncryption) ToBytes() ([]byte, error) {
+	gkb := sl.gk.BytesCompressed()
+	mzakb, err := sl.mzak.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	return append(gkb, mzakb...), nil
+}
+
+func SecondLevelEncryptionFromBytes(b []byte) (sl SecondLevelEncryption, err error) {
+	if len(b) != SecondLevelSize {
+		err = fmt.Errorf("Invalid second level size. Got %v, expected %v", len(b), SecondLevelSize)
+		return
+	}
+	if err = sl.gk.SetBytes(b[:bls12381.G1SizeCompressed]); err != nil {
+		return
+	}
+	err = sl.mzak.UnmarshalBinary(b[bls12381.G1SizeCompressed:])
+	return
 }
 
 type ReencKey struct {
@@ -193,7 +221,7 @@ func (re *ReencKey) ToBytes() []byte {
 
 func ReencKeyFromBytes(b []byte) (re ReencKey, err error) {
 	err = re.ga1b2.SetBytes(b) // checks point is on G2
-	if err == nil && re.ga1b2.IsIdentity() {
+	if err == nil && (re.ga1b2.IsIdentity() || re.ga1b2.IsEqual(bls12381.G2Generator())) {
 		err = fmt.Errorf("Invalid ReencKey: is identitiy")
 	}
 	return
@@ -212,4 +240,20 @@ func (sl *SecondLevelEncryption) ReEncrypt(reencKey *ReencKey) *FirstLevelEncryp
 		zak:    *zbak,
 		mzk:    sl.mzak,
 	}
+}
+
+func isFromPairing(gt *bls12381.Gt) (bool, error) {
+	b, err := gt.MarshalBinary()
+	if err != nil {
+		return false, err
+	}
+
+	ur := ff.URoot{}
+	err = ur.UnmarshalBinary(b)
+	if err != nil {
+		return false, err
+	}
+	ur.Exp(&ur, bls12381.Order())
+
+	return ur.IsIdentity() == 1, nil
 }
