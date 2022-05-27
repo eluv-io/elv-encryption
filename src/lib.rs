@@ -1,6 +1,6 @@
 use bls12_381::{G1Projective, G2Affine, G2Projective, Gt, Scalar};
 
-use group::{ff::Field, Curve, Group};
+use group::{ff::Field, Curve, Group, prime::PrimeCurveAffine};
 use pairing::PairingCurveAffine;
 use rand::RngCore;
 
@@ -13,6 +13,10 @@ pub enum Error {
     DivideByZero,
     #[error("Failed to parse scalar")]
     ScalarParseError,
+    #[error("Failed to parse compressed g2 point")]
+    G2AffineParseError,
+    #[error("Failed to parse compressed gt point")]
+    GtCompressedParseEror,
 }
 
 pub enum EncryptedFor {

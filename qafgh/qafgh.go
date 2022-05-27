@@ -8,17 +8,104 @@ import (
 	"github.com/cloudflare/circl/ecc/bls12381/ff"
 )
 
+const GtCompressedSize = bls12381.GtSize / 2 // == 288
+
+// Formula for decompression for the odd q case from Section 2 in
+// "Compression in finite fields and torus-based cryptography" by
+// Rubin-Silverberg.
+// Use torus-based compression from Section 4.1 in
+// "On Compressible Pairings and Their Computation" by Naehrig et al.
+func CompressGt(gt *bls12381.Gt) ([]byte, error) {
+	mb, _ := gt.MarshalBinary()
+	ur := ff.URoot{}
+	err := ur.UnmarshalBinary(mb)
+	if err != nil {
+		return nil, err
+	}
+	c0B, err := ur[0].MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	b := ff.Fp6{}
+	// b <- ur[0] (fp6)
+	err = b.UnmarshalBinary(c0B)
+	if err != nil {
+		return nil, err
+	}
+	// b[0] <- b[0] + 1
+	fp2one := ff.Fp2{}
+	fp2one.SetOne()
+	b[0].Add(&b[0], &fp2one)
+	// b <- b / ur[1]
+	ur1Inv := ff.Fp6{}
+	ur1Inv.Inv(&ur[1])
+	b.Mul(&b, &ur1Inv)
+
+	return serFp6(b)
+}
+
+func DecompressGt(in []byte) (res bls12381.Gt, err error) {
+	b, err := dsrFp6(in)
+	if err != nil {
+		return
+	}
+
+	one := ff.Fp6{}
+	one.SetOne()
+	neg1 := ff.Fp6{}
+	neg1.SetOne()
+	neg1.Neg()
+
+	t := ff.Fp12{b, neg1}
+	t.Inv(&t)
+	c := ff.Fp12{b, one}
+	c.Mul(&c, &t)
+	var cB []byte
+	cB, err = c.MarshalBinary()
+	if err != nil {
+		return
+	}
+	err = res.UnmarshalBinary(cB)
+	if err != nil {
+		return
+	}
+	isPairingRes, err := isFromPairing(&res)
+	if err != nil {
+		return
+	}
+	if !isPairingRes {
+		err = fmt.Errorf("Invalid message: not a pairing result")
+		return
+	}
+	return res, nil
+}
+
+func (msg *Message) Compressed() ([]byte, error) {
+	return CompressGt(&msg.m)
+}
+
+func DecompressMessage(in []byte) (*Message, error) {
+	gt, err := DecompressGt(in)
+	if err != nil {
+		return nil, err
+	}
+	return &Message{m: gt}, nil
+}
+
 type Message struct {
 	m bls12381.Gt
 }
 
 func (msg *Message) ToBytes() ([]byte, error) {
-	return msg.m.MarshalBinary()
+	return CompressGt(&msg.m)
 }
 
-func MessageFromBytes(b []byte) (m Message, err error) {
-	err = m.m.UnmarshalBinary(b)
-	return
+func MessageFromBytes(b []byte) (*Message, error) {
+	gt, err := DecompressGt(b)
+	if err != nil {
+		return nil, err
+	}
+	return &Message{m: gt}, nil
 }
 
 func RandomMessage(rand io.Reader) (*Message, error) {
@@ -46,11 +133,11 @@ type SecretKey struct {
 	a2 bls12381.Scalar
 }
 
-const PK_SIZE = bls12381.GtSize + bls12381.G2SizeCompressed
+const PK_SIZE = GtCompressedSize + bls12381.G2SizeCompressed
 
 func (pk *PublicKey) ToBytes() ([]byte, error) {
 	ga2Bytes := pk.ga2.BytesCompressed()
-	za1Bytes, err := pk.za1.MarshalBinary()
+	za1Bytes, err := CompressGt(&pk.za1)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +153,7 @@ func PublicKeyFromBytes(arr []byte) (pk PublicKey, err error) {
 	if err = pk.ga2.SetBytes(arr[:bls12381.G2SizeCompressed]); err != nil {
 		return
 	}
-	if err = pk.za1.UnmarshalBinary(arr[bls12381.G2SizeCompressed:]); err != nil {
+	if pk.za1, err = DecompressGt(arr[bls12381.G2SizeCompressed:]); err != nil {
 		return
 	}
 	return
@@ -192,7 +279,7 @@ func EncryptSecondLevel(msg *Message, pk *PublicKey, rand io.Reader) (*SecondLev
 
 func (sl *SecondLevelEncryption) ToBytes() ([]byte, error) {
 	gkb := sl.gk.BytesCompressed()
-	mzakb, err := sl.mzak.MarshalBinary()
+	mzakb, err := CompressGt(&sl.mzak)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +294,7 @@ func SecondLevelEncryptionFromBytes(b []byte) (sl SecondLevelEncryption, err err
 	if err = sl.gk.SetBytes(b[:bls12381.G1SizeCompressed]); err != nil {
 		return
 	}
-	err = sl.mzak.UnmarshalBinary(b[bls12381.G1SizeCompressed:])
+	sl.mzak, err = DecompressGt(b[bls12381.G1SizeCompressed:])
 	return
 }
 
