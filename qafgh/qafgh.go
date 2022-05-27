@@ -10,9 +10,6 @@ import (
 
 const GtCompressedSize = bls12381.GtSize / 2 // == 288
 
-// Formula for decompression for the odd q case from Section 2 in
-// "Compression in finite fields and torus-based cryptography" by
-// Rubin-Silverberg.
 // Use torus-based compression from Section 4.1 in
 // "On Compressible Pairings and Their Computation" by Naehrig et al.
 func CompressGt(gt *bls12381.Gt) ([]byte, error) {
@@ -44,6 +41,9 @@ func CompressGt(gt *bls12381.Gt) ([]byte, error) {
 	return serFp6(b)
 }
 
+// Formula for decompression for the odd q case from Section 2 in
+// "Compression in finite fields and torus-based cryptography" by
+// Rubin-Silverberg.
 func DecompressGt(in []byte) (res bls12381.Gt, err error) {
 	b, err := dsrFp6(in)
 	if err != nil {
@@ -78,18 +78,6 @@ func DecompressGt(in []byte) (res bls12381.Gt, err error) {
 		return
 	}
 	return res, nil
-}
-
-func (msg *Message) Compressed() ([]byte, error) {
-	return CompressGt(&msg.m)
-}
-
-func DecompressMessage(in []byte) (*Message, error) {
-	gt, err := DecompressGt(in)
-	if err != nil {
-		return nil, err
-	}
-	return &Message{m: gt}, nil
 }
 
 type Message struct {
@@ -252,7 +240,7 @@ func (fe *FirstLevelEncryption) Decrypt(sk *SecretKey) (*Message, error) {
 	return &Message{m: zk}, nil
 }
 
-const SecondLevelSize = bls12381.G1SizeCompressed + bls12381.GtSize
+const SecondLevelSize = bls12381.G1SizeCompressed + GtCompressedSize
 
 type SecondLevelEncryption struct {
 	gk   bls12381.G1
