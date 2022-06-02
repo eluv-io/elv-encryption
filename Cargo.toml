@@ -7,15 +7,23 @@ edition = "2021"
 
 [dependencies]
 aes-gcm = "0.9.4"
-bls12_381 = { version = "0.4.2", package = "blstrs" }
-rand = "0.8"
-group = "0.11"
+sha2 = "0.10.2"
+bls12_381 = { git = "https://github.com/elv-will/bls12_381" }
+rand = { version = "0.8" }
+getrandom = { version = "0.2" }
+group = "0.12"
 pairing = "0.21"
 subtle = "2.2"
 thiserror = "1.0"
+wasm-bindgen = "0.2"
 
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+
 [features]
+wasm = ["getrandom/js"]

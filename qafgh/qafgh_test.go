@@ -8,7 +8,6 @@ import (
 
 	"github.com/cloudflare/circl/ecc/bls12381"
 	"github.com/cloudflare/circl/ecc/bls12381/ff"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +50,7 @@ func TestSecondLevelEnc(t *testing.T) {
 	res, err := fl.Decrypt(&skb)
 	require.NoError(t, err)
 
-	assert.True(t, res.m.IsEqual(&msg.m))
+	require.True(t, res.m.IsEqual(&msg.m))
 
 	resBytes, err := res.ToBytes()
 	require.NoError(t, err)
@@ -59,7 +58,7 @@ func TestSecondLevelEnc(t *testing.T) {
 	msgBytes, err := msg.ToBytes()
 	require.NoError(t, err)
 
-	assert.Equal(t, resBytes, msgBytes)
+	require.Equal(t, resBytes, msgBytes)
 }
 
 func TestMessageCompression(t *testing.T) {

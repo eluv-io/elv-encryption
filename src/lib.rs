@@ -1,11 +1,15 @@
-use bls12_381::{G1Projective, G2Affine, G2Projective, Gt, Scalar};
+use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective, Gt, Scalar};
+use sha2::{Digest, Sha256};
 
-use group::{ff::Field, Curve, Group, prime::PrimeCurveAffine};
+use group::{ff::Field, prime::PrimeCurveAffine, Curve, Group};
 use pairing::PairingCurveAffine;
 use rand::RngCore;
 
+mod aes;
 mod key;
+pub(crate) mod util;
 pub use key::{PublicKey, SecretKey};
+use util::ser_gt;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -17,6 +21,27 @@ pub enum Error {
     G2AffineParseError,
     #[error("Failed to parse compressed gt point")]
     GtCompressedParseEror,
+    #[error("AES Error")]
+    AESError,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Message(Gt);
+
+impl Message {
+    const DST: [u8; 12] = *b"ELV_AFGH_MSG";
+    pub fn random(rng: impl RngCore) -> Self {
+        Message(Gt::random(rng))
+    }
+
+    pub fn derive_aes_key(&self) -> Result<[u8; 16], Error> {
+        let mut gt_out = [0u8; 300];
+        gt_out[..12].copy_from_slice(&Self::DST);
+        ser_gt(&self.0, &mut gt_out[12..])?;
+        let mut hasher = Sha256::new();
+        hasher.update(&gt_out);
+        Ok(hasher.finalize().as_slice().try_into().unwrap())
+    }
 }
 
 pub enum EncryptedFor {
@@ -31,16 +56,16 @@ pub struct FirstLevelEncryption {
 }
 
 impl FirstLevelEncryption {
-    pub fn encrypt(m: &Gt, pk: &PublicKey, rng: impl RngCore) -> Self {
+    pub fn encrypt(m: &Message, pk: &PublicKey, rng: impl RngCore) -> Self {
         let k = Scalar::random(rng);
         Self {
             enc_for: EncryptedFor::A1,
             zak: pk.za1 * k,
-            mzk: (m + (Gt::generator() * k)),
+            mzk: (m.0 + (Gt::generator() * k)),
         }
     }
 
-    pub fn decrypt(&self, sk: &SecretKey) -> Result<Gt, Error> {
+    pub fn decrypt(&self, sk: &SecretKey) -> Result<Message, Error> {
         let opt_inv_scalar = match self.enc_for {
             EncryptedFor::A1 => sk.a1.invert(),
             EncryptedFor::A2 => sk.a2.invert(),
@@ -51,27 +76,28 @@ impl FirstLevelEncryption {
             opt_inv_scalar.unwrap()
         };
         let zk = self.zak * inv_scalar;
-        Ok(self.mzk - zk)
+        Ok(Message(self.mzk - zk))
     }
 }
 
 pub struct SecondLevelEncryption {
-    gk: G1Projective,
+    gk: G1Affine,
     mzak: Gt,
 }
 
 impl SecondLevelEncryption {
-    pub fn encrypt(m: &Gt, pk: &PublicKey, rng: impl RngCore) -> Self {
+    pub const BYTES: usize = 48 + 288;
+    pub fn encrypt(m: &Message, pk: &PublicKey, rng: impl RngCore) -> Self {
         let k = Scalar::random(rng);
         Self {
-            gk: G1Projective::generator() * k,
-            mzak: m + (pk.za1 * k),
+            gk: (G1Affine::generator() * k).to_affine(),
+            mzak: m.0 + (pk.za1 * k),
         }
     }
 
     pub fn re_encrypt(&self, reenc_key: &ReencKey) -> FirstLevelEncryption {
         let rkab_affine: G2Affine = reenc_key.ga1b2.to_affine();
-        let zbak = self.gk.to_affine().pairing_with(&rkab_affine);
+        let zbak = bls12_381::pairing(&self.gk, &rkab_affine);
         FirstLevelEncryption {
             enc_for: EncryptedFor::A2,
             zak: zbak,
@@ -79,9 +105,18 @@ impl SecondLevelEncryption {
         }
     }
 
-    pub fn decrypt(&self, sk: &SecretKey) -> Gt {
-        let sub = self.gk.to_affine().pairing_with(&G2Affine::generator()) * sk.a1;
-        self.mzak - sub
+    pub fn decrypt(&self, sk: &SecretKey) -> Message {
+        let sub = bls12_381::pairing(&self.gk, &G2Affine::generator()) * sk.a1;
+        Message(self.mzak - sub)
+    }
+
+    pub fn to_bytes(&self) -> [u8; Self::BYTES] {
+        let gk_cmp = self.gk.to_compressed();
+        let gt_cmp = self.mzak.serialize_compressed();
+        [gk_cmp.as_slice(), gt_cmp.as_slice()]
+            .concat()
+            .try_into()
+            .unwrap()
     }
 }
 
@@ -108,7 +143,7 @@ mod tests {
     struct Setup {
         a: SecretKey,
         b: SecretKey,
-        msg: Gt,
+        msg: Message,
         rng: ThreadRng,
     }
 
@@ -117,7 +152,7 @@ mod tests {
         Setup {
             a: SecretKey::random(&mut rng),
             b: SecretKey::random(&mut rng),
-            msg: Gt::random(&mut rng),
+            msg: Message::random(&mut rng),
             rng,
         }
     }
