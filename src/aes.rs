@@ -5,7 +5,7 @@ use aes_gcm::{
 use rand::RngCore;
 
 use crate::{
-    Error, FirstLevelEncryption, Message, PublicKey, ReencKey, SecondLevelEncryption, SecretKey,
+    Error, FirstLevelEncryption, Message, ReencKey, SecondLevelEncryption, EncryptionPublicKey, DecryptionSecretKey,
 };
 
 pub struct AfghEncryption {
@@ -16,12 +16,12 @@ pub struct AfghEncryption {
 
 pub fn afgh_encrypt(
     cleartext: &[u8],
-    pk: &PublicKey,
-    rng: impl RngCore,
+    pk: &EncryptionPublicKey,
+    mut rng: impl RngCore,
 ) -> Result<AfghEncryption, Error> {
     let m = Message::random(&mut rng);
     let sl = SecondLevelEncryption::encrypt(&m, pk, &mut rng);
-    let aes_key = m.derive_aes_key()?;
+    let aes_key = m.derive_aes_key();
 
     let cipher = Aes128Gcm::new(&aes_key.into());
     let mut nonce_bytes = [0u8; 12];
@@ -52,9 +52,10 @@ pub fn afgh_re_encrypt(afghe: AfghEncryption, rk: &ReencKey) -> AfghReEncryption
     }
 }
 
-pub fn afgh_re_decrypt(re: AfghReEncryption, sk: &SecretKey) -> Result<Vec<u8>, Error> {
-    let m = re.fl.decrypt(&sk)?;
-    let aes_key = m.derive_aes_key()?;
+pub fn afgh_re_decrypt(re: AfghReEncryption, sk: &DecryptionSecretKey) -> Result<Vec<u8>, Error> {
+    let m: Option<Message> = re.fl.decrypt(&sk).into();
+    let m = m.ok_or(Error::MessageDecryptError)?;
+    let aes_key = m.derive_aes_key();
 
     let cipher = Aes128Gcm::new(&aes_key.into());
     cipher

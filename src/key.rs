@@ -1,104 +1,90 @@
 use bls12_381::{G2Affine, G2Projective, Gt, Scalar};
 
-use group::{ff::Field, Curve, Group};
+use group::{Curve, Group, ff::Field};
 use rand::RngCore;
+use subtle::CtOption;
 
-use crate::Error;
 
-pub struct PublicKey {
+const COMPRESSED_GT_SIZE: usize = 576 / 2;
+const COMPRESSED_G2_SIZE: usize = 96;
+const SCALAR_SIZE: usize = 32;
+
+pub struct EncryptionPublicKey {
     pub(crate) za1: Gt,
-    pub(crate) ga2: G2Affine,
 }
 
-pub struct SecretKey {
+impl EncryptionPublicKey {
+    const BYTES: usize = COMPRESSED_GT_SIZE;
+
+    pub fn to_bytes(&self) -> [u8; Self::BYTES] {
+        return self.za1.serialize_compressed();
+    }
+
+    pub fn from_bytes(bytes: &[u8; Self::BYTES]) -> CtOption<Self> {
+        Gt::deserialize_compressed(&bytes).map(|za1| Self { za1 })
+    }
+}
+
+pub struct DecryptionPublicKey {
+    pub(crate) gb2: G2Affine,
+}
+
+impl DecryptionPublicKey {
+    const BYTES: usize = COMPRESSED_G2_SIZE;
+
+    pub fn to_bytes(&self) -> [u8; Self::BYTES] {
+        return self.gb2.to_compressed();
+    }
+
+    pub fn from_bytes(bytes: &[u8; Self::BYTES]) -> CtOption<Self> {
+        G2Affine::from_compressed(bytes).map(|ga2| Self { gb2: ga2 })
+    }
+}
+
+pub struct EncryptionSecretKey {
     pub(crate) a1: Scalar,
-    pub(crate) a2: Scalar,
 }
 
-impl PublicKey {
-    const BYTES: usize = 288 + 96;
-
-    pub fn to_bytes(&self) -> Result<[u8; Self::BYTES], Error> {
-        let mut ret = [0u8; Self::BYTES];
-        let ga2_bytes = self.ga2.to_compressed();
-        let za1_bytes = self.za1.serialize_compressed();
-        ret[..96].copy_from_slice(&ga2_bytes);
-        ret[96..].copy_from_slice(&za1_bytes);
-        Ok(ret)
-    }
-
-    pub fn from_bytes(bytes: &[u8; Self::BYTES]) -> Result<Self, Error> {
-        let ga2_bytes: &[u8; 96] = &bytes[..96].try_into().unwrap();
-        let ga2: G2Affine = Into::<Option<_>>::into(G2Affine::from_compressed(ga2_bytes))
-            .ok_or(Error::G2AffineParseError)?;
-
-        let za1_bytes: &[u8; 288] = &bytes[96..].try_into().unwrap();
-        let za1_mabye: Option<Gt> = Gt::deserialize_compressed(&za1_bytes).into();
-        let za1 = za1_mabye.ok_or(Error::GtCompressedParseEror)?;
-
-        Ok(PublicKey { za1, ga2 })
-    }
-}
-
-impl SecretKey {
-    pub fn to_bytes(&self) -> [u8; 64] {
-        let mut out = [0u8; 64];
-        let outa1 = self.a1.to_bytes();
-        let outa2 = self.a2.to_bytes();
-        out[..32].copy_from_slice(&outa1);
-        out[32..].copy_from_slice(&outa2);
-        out
-    }
-
-    pub fn from_bytes(bytes: &[u8; 64]) -> Result<Self, Error> {
-        let a1 = Scalar::from_bytes(
-            <&[u8; 32]>::try_from(&bytes[..32]).expect("Must have exactly 32 bytes"),
-        );
-        let a2 = Scalar::from_bytes(
-            <&[u8; 32]>::try_from(&bytes[32..]).expect("Must have exactly 32 bytes"),
-        );
-        if a1.is_some().into() && a2.is_some().into() {
-            Ok(Self {
-                a1: a1.unwrap(),
-                a2: a2.unwrap(),
-            })
-        } else {
-            Err(Error::ScalarParseError)
-        }
-    }
-
-    pub fn random(mut rng: impl RngCore) -> Self {
-        Self {
-            a1: Scalar::random(&mut rng),
-            a2: Scalar::random(&mut rng),
-        }
-    }
-
-    pub fn pubkey(&self) -> PublicKey {
-        PublicKey {
+impl EncryptionSecretKey {
+    pub fn pubkey(&self) -> EncryptionPublicKey {
+        EncryptionPublicKey {
             za1: Gt::generator() * self.a1,
-            ga2: (G2Projective::generator() * self.a2).to_affine(),
         }
+    }
+
+    pub fn to_bytes(&self) -> [u8; SCALAR_SIZE] {
+        self.a1.to_bytes()
+    }
+
+    pub fn from_bytes(bytes: &[u8; SCALAR_SIZE]) -> CtOption<Self> {
+        Scalar::from_bytes(bytes).map(|a1| Self { a1 })
+    }
+
+    pub fn random(rng: impl RngCore) -> Self {
+        Self { a1: Scalar::random(rng) }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{PublicKey, SecretKey};
-    use hex_literal::hex;
+pub struct DecryptionSecretKey {
+    pub(crate) b2: Scalar,
+}
 
-    const SK_A: [u8; 64] = hex!("0e6cfd632776c53d7d30ca85532bda02bc7bb9581c8d1a965b7266b1427d3f872da6ec9ad9dbfdb8ef3a37ef0753debc0d01932276e11b78c2a9d0e4564bab0c");
-    const PK_A: [u8; PublicKey::BYTES] = hex!("87acbe54f1faccacedc1f0fdd3225c811e4abb0ad5878a29710600b404b0e4ae809916186ba418103c43eeec4c088f9f0de1a2310836cc8d5208796b86f10ad25918f72e35f334a162c3b01c39815edc70a97f07e158fcedf5c89405b1070a7855017d15b53be47dcd1a7f718c4eb690b53ad24b3169d0a1965e82a7965879501f2e30e9c4f664aa7873a6cab7e24e0460bfb3fde3d1dc89a5cdbb2d9418e6c90ad5887712323cce3de0ae7ef13f5f8b1868a0b6e8a7bf50fe4f899b9baf350b54aeb296df5e9e0504dd503e8e1fc182a0566240e1d67687a68ab75f3ba872753d887396b4c41225f74b235bc7d66813cba9aae1846c41f4b30c43310d5b21a35c2ca7756d40660cda91be9218670db65ebdfac3df77e9585413ff9e5c937c1673d3d144eacc53a3879d96d87259a72789a8d9bf54e65386bc896b7e01eb358c7d69f7901aa8a410a156529fd484260db5f2602b83d239518f8160706ecc45665db49bda6b4be1a4894db8e56273bd9893f9dbd25a230c9746c9fd93e1cb690b");
+impl DecryptionSecretKey {
+    pub fn pubkey(&self) -> DecryptionPublicKey {
+        DecryptionPublicKey {
+            gb2: (G2Projective::generator() * self.b2).to_affine(),
+        }
+    }
 
-    #[test]
-    fn test_serialization() {
-        let ska = SecretKey::from_bytes(&SK_A).unwrap();
-        let pka = ska.pubkey();
+    pub fn to_bytes(&self) -> [u8; SCALAR_SIZE] {
+        self.b2.to_bytes()
+    }
 
-        let sk_bytes = ska.to_bytes();
-        let pk_bytes = pka.to_bytes().unwrap();
+    pub fn from_bytes(bytes: &[u8; SCALAR_SIZE]) -> CtOption<Self> {
+        Scalar::from_bytes(bytes).map(|b2| Self { b2 })
+    }
 
-        assert_eq!(SK_A, sk_bytes);
-        assert_eq!(PK_A, pk_bytes);
+    pub fn random(rng: impl RngCore) -> Self {
+        Self { b2: Scalar::random(rng) }
     }
 }
