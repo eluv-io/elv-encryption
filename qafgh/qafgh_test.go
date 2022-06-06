@@ -2,12 +2,9 @@ package qafgh
 
 import (
 	"crypto/rand"
-	"io"
-	"math/big"
 	"testing"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,54 +77,6 @@ func TestIsValidPairing(t *testing.T) {
 	}
 }
 
-//func TestKeySerialization(t *testing.T) {
-//	ska, err := SecretKeyFromBytes(skaBytes)
-//	require.NoError(t, err)
-//	skaBytesRes, err := ska.ToBytes()
-//	require.NoError(t, err)
-//	require.Equal(t, skaBytes, skaBytesRes)
-//
-//	pka := ska.Pubkey()
-//	pkaBytesRes, err := pka.ToBytes()
-//	require.NoError(t, err)
-//	require.Equal(t, pkaBytes, pkaBytesRes)
-//}
-
-//
-//func TestSerialization(t *testing.T) {
-//	ska, err := SecretKeyFromBytes(skaBytes)
-//	require.NoError(t, err)
-//	skb, err := SecretKeyFromBytes(skbBytes)
-//	require.NoError(t, err)
-//
-//	pka := ska.Pubkey()
-//	pkaBytesRes, err := pka.ToBytes()
-//	require.NoError(t, err)
-//	require.Equal(t, pkaBytes, pkaBytesRes)
-//
-//	pkb := skb.Pubkey()
-//	pkbBytesRes, err := pkb.ToBytes()
-//	require.NoError(t, err)
-//	require.Equal(t, pkbBytes, pkbBytesRes)
-//
-//	msg, err := MessageFromBytes(msgBytes)
-//	require.NoError(t, err)
-//
-//	rkab, err := ReencKeyFromBytes(rkabBytes)
-//	require.NoError(t, err)
-//
-//	sl, err := SecondLevelEncryptionFromBytes(slEncBytes)
-//	require.NoError(t, err)
-//
-//	msgRes, err := sl.ReEncrypt(&rkab).Decrypt(&skb)
-//	require.NoError(t, err)
-//	require.True(t, msgRes.m.IsEqual(&msg.m))
-//
-//	resBytes, err := msgRes.ToBytes()
-//	require.NoError(t, err)
-//	require.Equal(t, resBytes, msgBytes)
-//}
-
 func TestGTSerialization(t *testing.T) {
 	gt, err := randGTInGroup(rand.Reader)
 	require.NoError(t, err)
@@ -136,38 +85,4 @@ func TestGTSerialization(t *testing.T) {
 	decompress, err := decompressGt(compressed[:])
 	require.NoError(t, err)
 	require.True(t, decompress.Equal(&gt))
-}
-
-func TestScalarMult(t *testing.T) {
-	rb := [32]byte{}
-	_, err := io.ReadFull(rand.Reader, rb[:])
-	require.NoError(t, err)
-
-	elem := fr.Element{}
-	elem.SetBytes(rb[:])
-
-	bi := big.Int{}
-	bi.SetBytes(rb[:])
-	bi.Mod(&bi, bls12381.ID.Info().Fr.Modulus())
-
-	require.Equal(t, bi.Bytes(), elem.Marshal())
-
-	elemBi := big.Int{}
-	elem.ToBigInt(&elemBi)
-
-	require.NotEqual(t, bi, elemBi)
-
-	elemBir := big.Int{}
-	elem.ToBigIntRegular(&elemBir)
-
-	require.Equal(t, bi, elemBir)
-
-	gtbi := GTZ
-	gtbi.Exp(&gtbi, elemBir)
-
-	gtelem := GTZ
-	gtelem.Exp(&gtelem, scalarToBig(&elem))
-
-	require.True(t, gtelem.Equal(&gtbi))
-
 }
