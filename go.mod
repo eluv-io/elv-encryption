@@ -3,7 +3,6 @@ module github.com/elv-will/elv-afgh
 go 1.18
 
 require (
-	github.com/cloudflare/circl v1.1.0
 	github.com/consensys/gnark-crypto v0.6.2-0.20220323142942-9e99f69d2b0a
 )
 

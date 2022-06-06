@@ -1,36 +1,20 @@
 package qafgh
 
 import (
-	"bytes"
 	"crypto/rand"
+	"io"
+	"math/big"
 	"testing"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFirstLevelEnc(t *testing.T) {
-	sk, err := RandomSecretKey(rand.Reader)
-	pk := sk.Pubkey()
-	require.NoError(t, err)
-	msg, err := RandomMessage(rand.Reader)
-	require.NoError(t, err)
-	fl, err := FirstLevelEncrypt(msg, &pk, rand.Reader)
-	require.NoError(t, err)
-
-	res, err := fl.Decrypt(sk)
-	require.NoError(t, err)
-
-	resBytes := res.ToBytes()
-	msgBytes := msg.ToBytes()
-
-	require.True(t, bytes.Equal(resBytes, msgBytes))
-}
-
 func TestSecondLevelEnc(t *testing.T) {
-	ska, err := RandomSecretKey(rand.Reader)
+	ska, err := RandomEncryptionSecretKey(rand.Reader)
 	require.NoError(t, err)
-	skb, err := RandomSecretKey(rand.Reader)
+	skb, err := RandomDecryptionSecretKey(rand.Reader)
 	require.NoError(t, err)
 	pka := ska.Pubkey()
 	pkb := skb.Pubkey()
@@ -61,7 +45,7 @@ func TestMessageSerialization(t *testing.T) {
 	cmp := msg.ToBytes()
 	require.Len(t, cmp, 576/2)
 
-	res, err := MessageFromBytes(cmp)
+	res, err := MessageFromBytes(cmp[:])
 	require.NoError(t, err)
 	require.True(t, msg.m.Equal(&res.m))
 }
@@ -72,7 +56,7 @@ func TestMessageCompressionFromUnpaired(t *testing.T) {
 	m := &Message{m: gt}
 	mB := m.ToBytes()
 
-	_, err := MessageFromBytes(mB)
+	_, err := MessageFromBytes(mB[:])
 	require.Error(t, err)
 }
 
@@ -145,54 +129,45 @@ func TestIsValidPairing(t *testing.T) {
 //}
 
 func TestGTSerialization(t *testing.T) {
-	gt, err := RandGTInGroup(rand.Reader)
+	gt, err := randGTInGroup(rand.Reader)
 	require.NoError(t, err)
 
-	compressed := CompressGtG(gt)
-	decompress, err := DecompressGtG(compressed)
+	compressed := compressGt(gt)
+	decompress, err := decompressGt(compressed[:])
 	require.NoError(t, err)
 	require.True(t, decompress.Equal(&gt))
 }
 
-func TestThingy(t *testing.T) {
-	m, _ := RandomMessage(rand.Reader)
-	gt := m.m
-	require.True(t, gt.IsInSubGroup())
-	b1 := gt.CompressTorus()
-	bytes21 := b1.B2.A1.Bytes()
-	bytes20 := b1.B2.A0.Bytes()
-	bytes11 := b1.B1.A1.Bytes()
-	bytes10 := b1.B1.A0.Bytes()
-	bytes01 := b1.B0.A1.Bytes()
-	bytes00 := b1.B0.A0.Bytes()
+func TestScalarMult(t *testing.T) {
+	rb := [32]byte{}
+	_, err := io.ReadFull(rand.Reader, rb[:])
+	require.NoError(t, err)
 
-	out := [288]byte{}
-	// serialize big endian
-	copy(out[0*48:1*48], bytes21[:])
-	copy(out[1*48:2*48], bytes20[:])
-	copy(out[2*48:3*48], bytes11[:])
-	copy(out[3*48:4*48], bytes10[:])
-	copy(out[4*48:5*48], bytes01[:])
-	copy(out[5*48:6*48], bytes00[:])
+	elem := fr.Element{}
+	elem.SetBytes(rb[:])
 
-	a := bls12381.GT{}
-	b2 := a.C0
+	bi := big.Int{}
+	bi.SetBytes(rb[:])
+	bi.Mod(&bi, bls12381.ID.Info().Fr.Modulus())
 
-	b2.B2.A1.SetBytes(out[0*48 : 1*48])
-	b2.B2.A0.SetBytes(out[1*48 : 2*48])
-	b2.B1.A1.SetBytes(out[2*48 : 3*48])
-	b2.B1.A0.SetBytes(out[3*48 : 4*48])
-	b2.B0.A1.SetBytes(out[4*48 : 5*48])
-	b2.B0.A0.SetBytes(out[5*48 : 6*48])
+	require.Equal(t, bi.Bytes(), elem.Marshal())
 
-	require.True(t, b2.Equal(&b1))
+	elemBi := big.Int{}
+	elem.ToBigInt(&elemBi)
 
-	res1 := b1.DecompressTorus()
-	res2 := b2.DecompressTorus()
-	require.True(t, res1.IsInSubGroup())
-	require.True(t, res2.IsInSubGroup())
+	require.NotEqual(t, bi, elemBi)
 
-	require.True(t, res1.Equal(&res2))
-	require.True(t, res1.Equal(&gt))
-	require.True(t, res2.Equal(&gt))
+	elemBir := big.Int{}
+	elem.ToBigIntRegular(&elemBir)
+
+	require.Equal(t, bi, elemBir)
+
+	gtbi := GTZ
+	gtbi.Exp(&gtbi, elemBir)
+
+	gtelem := GTZ
+	gtelem.Exp(&gtelem, scalarToBig(&elem))
+
+	require.True(t, gtelem.Equal(&gtbi))
+
 }
