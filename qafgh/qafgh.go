@@ -44,9 +44,35 @@ func RandomMessage(r io.Reader) (*Message, error) {
 var _, _, G1GEN, G2GEN = bls12381.Generators()
 var GTZ, _ = bls12381.Pair([]bls12381.G1Affine{G1GEN}, []bls12381.G2Affine{G2GEN})
 
+const FirstLevelSize = 2 * compressedGtSize
+
 type FirstLevelEncryption struct {
 	zak bls12381.GT
 	mzk bls12381.GT
+}
+
+func FirstLevelEncryptionFromBytes(inp []byte) (*FirstLevelEncryption, error) {
+	if len(inp) != FirstLevelSize {
+		return nil, fmt.Errorf("Invalid first level size")
+	}
+	zak, err := decompressGt(inp[:compressedGtSize])
+	if err != nil {
+		return nil, err
+	}
+	mzk, err := decompressGt(inp[compressedGtSize:])
+	if err != nil {
+		return nil, err
+	}
+	return &FirstLevelEncryption{
+		zak: *zak,
+		mzk: *mzk,
+	}, nil
+}
+
+func (fl *FirstLevelEncryption) ToBytes() []byte {
+	zakB := compressGt(fl.zak)
+	mzkB := compressGt(fl.mzk)
+	return append(zakB[:], mzkB[:]...)
 }
 
 func (fe *FirstLevelEncryption) Decrypt(sk *DecryptionSecretKey) (*Message, error) {
