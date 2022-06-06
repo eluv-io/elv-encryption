@@ -53,7 +53,3 @@ func DecompressGtG(inp []byte) (*bls12381.GT, error) {
 
 	return &res, nil
 }
-
-func SerScalar() {
-	a := bls12381.G1Affine{}
-}

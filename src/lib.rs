@@ -7,9 +7,7 @@ use rand::RngCore;
 
 mod aes;
 mod key;
-pub(crate) mod util;
 pub use key::{PublicKey, SecretKey};
-use util::ser_gt;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -34,13 +32,14 @@ impl Message {
         Message(Gt::random(rng))
     }
 
-    pub fn derive_aes_key(&self) -> Result<[u8; 16], Error> {
+    pub fn derive_aes_key(&self) -> [u8; 16] {
         let mut gt_out = [0u8; 300];
         gt_out[..12].copy_from_slice(&Self::DST);
-        ser_gt(&self.0, &mut gt_out[12..])?;
+        let gtb = self.0.serialize_compressed();
+        gt_out[12..].copy_from_slice(&gtb);
         let mut hasher = Sha256::new();
         hasher.update(&gt_out);
-        Ok(hasher.finalize().as_slice().try_into().unwrap())
+        hasher.finalize().as_slice().try_into().unwrap()
     }
 }
 
