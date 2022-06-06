@@ -9,6 +9,7 @@ const COMPRESSED_GT_SIZE: usize = 576 / 2;
 const COMPRESSED_G2_SIZE: usize = 96;
 const SCALAR_SIZE: usize = 32;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct EncryptionPublicKey {
     pub(crate) za1: Gt,
 }
@@ -25,6 +26,7 @@ impl EncryptionPublicKey {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct DecryptionPublicKey {
     pub(crate) gb2: G2Affine,
 }
@@ -41,6 +43,7 @@ impl DecryptionPublicKey {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct EncryptionSecretKey {
     pub(crate) a1: Scalar,
 }
@@ -65,6 +68,7 @@ impl EncryptionSecretKey {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct DecryptionSecretKey {
     pub(crate) b2: Scalar,
 }
@@ -86,5 +90,38 @@ impl DecryptionSecretKey {
 
     pub fn random(rng: impl RngCore) -> Self {
         Self { b2: Scalar::random(rng) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[test]
+    fn decryption_serialization() {
+        let dk = DecryptionSecretKey::random(&mut rand::thread_rng());
+        let dkp = dk.pubkey();
+
+        let dk_bytes = dk.to_bytes();
+        let dkp_bytes = dkp.to_bytes();
+        
+        let dk_res = DecryptionSecretKey::from_bytes(&dk_bytes).unwrap();
+        let dkp_res = DecryptionPublicKey::from_bytes(&dkp_bytes).unwrap();
+        assert_eq!(dk, dk_res);
+        assert_eq!(dkp, dkp_res);
+    }
+
+    #[test]
+    fn encryption_serialization() {
+        let ek = EncryptionSecretKey::random(&mut rand::thread_rng());
+        let ekp = ek.pubkey();
+
+        let ek_bytes = ek.to_bytes();
+        let ekp_bytes = ekp.to_bytes();
+        
+        let ek_res = EncryptionSecretKey::from_bytes(&ek_bytes).unwrap();
+        let ekp_res = EncryptionPublicKey::from_bytes(&ekp_bytes).unwrap();
+        assert_eq!(ek, ek_res);
+        assert_eq!(ekp, ekp_res);
     }
 }

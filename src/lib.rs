@@ -184,6 +184,8 @@ mod tests {
         let Setup { a, b, msg, mut rng } = setup();
 
         let second = SecondLevelEncryption::encrypt(&msg, &a.pubkey(), &mut rng);
+        assert_eq!(msg, second.decrypt(&a));
+
         let re_enc_key = ReencKey::delegate(&a, &b.pubkey());
         let delegated = second.re_encrypt(&re_enc_key);
         let dec = delegated.decrypt(&b).unwrap();
@@ -200,7 +202,7 @@ mod tests {
     const FLE: [u8; 576] = hex!("0c24974d5bca4939b34f0fc8643d93442b3db60f9830f54148f5db0acc12c12a9066f8f7bd9fc30aed0e25b9015b99e70cacfb8d17d0084823c57427f1e10ca5e3a0577292233c55f21dd5a5f6b7f0fcae09013e71ec3529d7d2cc5178594eec0ba362b84b75aa0e8e070f802626845f1b956efba8bb0a1915e4377fd415c364cdfd7960e48be7f14addd3808bafe75601f44e96f6cbf5c8572226da05735105843d2c403248f46d17b9b00145721dcdbff719aadfe1bf3e9242ea4eda7839910672b413fd474852fd130d29fda030f0029dc69fc2f325b4fc6f37fd6e7a913e6dde48518cabec646b12a52599b966ae15ddc50a25fcb0d2fd5f3d1efe5988416b1cb82c0dd85bb2949c36d91052224a205de9cce45d510f3111e45ca4223ff705b8d3e1dca5098ce7a9bd2203bb78584dbd177b2711778f75d9fd400187af6687f63b97b7cd372aed8063402c818d5c0973c8fd011f901ad1a4d698b4a3a3d92a93e09f9e74f06fcff0259140e631aeaf2d0edc1aab6d4e06ed946983d3e997130b9d8f1db5c38130c0f966752f412fe757eb67bb526d36d05ad31cfe26792137e43183d5ba8cd5fba2f0e726526fc206cd362c2d43d41738de5b4894db9f21b5a7d5b531e6ddbd0b5addb8de543e666951065658a3bd7b00721b47839a806f0ac80aa03d6b9195db7f4c741abe6af64f9334322a6afc3fee1d45a60be0a2390638d87d153d0da1e3d83293e6cc52770e6cad2b666df9578ac77efb0cbb49f6a29199eb387f619f41f0a953f246e956ed3e50c1ef913a3523d661b8486d7840");
 
     #[test]
-    fn serialization() {
+    fn consistent_serialization() {
         let ska = EncryptionSecretKey::from_bytes(&SKA).unwrap();
         let pka = ska.pubkey();
         assert_eq!(pka.to_bytes(), PKA);
