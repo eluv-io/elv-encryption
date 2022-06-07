@@ -1,11 +1,12 @@
 # ELV-AFGH
-This is an implementation of AFGH for Eluvio's Content Fabric.
+This is an implementation of the [AFGH Proxy Re-Encryption Scheme](https://web.archive.org/web/20220313022340/https://eprint.iacr.org/2005/028.pdf) for Eluvio's Content Fabric.
 
 BLS12-381 is chosen as the underlying curve specification used. Rust and golang implementations are provided. 
 
-## Implementation Choices
+## Implementation 
 
 The following choices are made for the cryptoscheme provided in the paper. Additive group notation is used.
+FLE/SLE stand for First/Second Level Encryption.
 
 | Item                 | Paper Symbols       | Type                         | Length (Bytes) |
 | -------------------- | ------------------- | ---------------------------- | -------------- |
@@ -18,7 +19,7 @@ The following choices are made for the cryptoscheme provided in the paper. Addit
 | FLE Message ($E_1$)  | $Za_1k, m + Z k$    | $\mathbb{G}_T, \mathbb{G}_T$ | 576            |
 | ReEncryption Key     | $g {a_1 b_2}$       | $\mathbb{G}_2$               | 96             |
 
-Notably, G1 and G2 are chosen such that we minimize the size of SLE messages. 
+Notably, $\mathbb{G1}$ and $\mathbb{G2}$ are chosen such that we minimize the size of SLE messages. 
 
 * Scalars in $\mathbb{Z}_q$ are serialized in canonical form as little endian.
 * G1/G2 elements are compressed and serialized according to the zkcrypto specification.

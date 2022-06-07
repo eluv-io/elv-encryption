@@ -1,9 +1,8 @@
 use bls12_381::{G2Affine, G2Projective, Gt, Scalar};
 
-use group::{Curve, Group, ff::Field};
+use group::{ff::Field, Curve, Group};
 use rand::RngCore;
 use subtle::CtOption;
-
 
 const COMPRESSED_GT_SIZE: usize = 576 / 2;
 const COMPRESSED_G2_SIZE: usize = 96;
@@ -64,7 +63,9 @@ impl EncryptionSecretKey {
     }
 
     pub fn random(rng: impl RngCore) -> Self {
-        Self { a1: Scalar::random(rng) }
+        Self {
+            a1: Scalar::random(rng),
+        }
     }
 }
 
@@ -89,7 +90,9 @@ impl DecryptionSecretKey {
     }
 
     pub fn random(rng: impl RngCore) -> Self {
-        Self { b2: Scalar::random(rng) }
+        Self {
+            b2: Scalar::random(rng),
+        }
     }
 }
 
@@ -104,7 +107,7 @@ mod tests {
 
         let dk_bytes = dk.to_bytes();
         let dkp_bytes = dkp.to_bytes();
-        
+
         let dk_res = DecryptionSecretKey::from_bytes(&dk_bytes).unwrap();
         let dkp_res = DecryptionPublicKey::from_bytes(&dkp_bytes).unwrap();
         assert_eq!(dk, dk_res);
@@ -118,7 +121,7 @@ mod tests {
 
         let ek_bytes = ek.to_bytes();
         let ekp_bytes = ekp.to_bytes();
-        
+
         let ek_res = EncryptionSecretKey::from_bytes(&ek_bytes).unwrap();
         let ekp_res = EncryptionPublicKey::from_bytes(&ekp_bytes).unwrap();
         assert_eq!(ek, ek_res);

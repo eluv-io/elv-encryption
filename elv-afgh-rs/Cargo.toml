@@ -1,0 +1,32 @@
+[package]
+name = "elv-afgh"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aes-gcm = "0.9.4"
+sha2 = "0.10.2"
+bls12_381 = { git = "https://github.com/elv-will/bls12_381" }
+rand = { version = "0.8" }
+group = "0.12"
+pairing = "0.21"
+subtle = "2.2"
+thiserror = "1.0"
+# JS feature does nothing unless target is wasm32-unknown-unknown
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+hex = "0.4"
+hex-literal = "0.3"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = {version = "0.2", optional = true}
+
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+wasm = ["wasm-bindgen", "getrandom/js"]

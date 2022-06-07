@@ -4,6 +4,8 @@ use sha2::{Digest, Sha256};
 use group::{ff::Field, Curve, Group};
 use rand::RngCore;
 
+#[cfg(tar
+
 mod aes;
 pub use aes::*;
 
@@ -25,6 +27,8 @@ pub enum Error {
     MessageDecryptError,
     #[error("AES Error")]
     AESError,
+    #[error("Failed to parse encryption header")]
+    AfghEncParseFailed, 
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -43,7 +47,7 @@ impl Message {
         gt_out[12..].copy_from_slice(&gtb);
         let mut hasher = Sha256::new();
         hasher.update(&gt_out);
-        hasher.finalize().as_slice().try_into().unwrap()
+        hasher.finalize().as_slice()[..16].try_into().unwrap()
     }
 
     pub fn to_bytes(&self) -> [u8; 288] {
