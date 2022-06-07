@@ -1,2 +1,7 @@
 [workspace]
 members = ["elv-afgh-rs"]
+
+
+[profile.release]
+lto = true
+opt-level = 'z'

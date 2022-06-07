@@ -4,16 +4,17 @@ use sha2::{Digest, Sha256};
 use group::{ff::Field, Curve, Group};
 use rand::RngCore;
 
-#[cfg(tar
+#[cfg(feature = "wasm")]
+pub mod wasm;
 
-mod aes;
-pub use aes::*;
+pub mod aes;
 
 mod key;
 pub use key::*;
 use subtle::CtOption;
 
 #[derive(thiserror::Error, Debug)]
+#[repr(u8)]
 pub enum Error {
     #[error("Divided by zero")]
     DivideByZero,
@@ -22,13 +23,27 @@ pub enum Error {
     #[error("Failed to parse compressed g2 point")]
     G2AffineParseError,
     #[error("Failed to parse compressed gt point")]
-    GtCompressedParseEror,
+    GtCompressedParseError,
     #[error("Failed to decrypt message")]
     MessageDecryptError,
     #[error("AES Error")]
     AESError,
     #[error("Failed to parse encryption header")]
-    AfghEncParseFailed, 
+    HeaderBadLength,
+    #[error("Encryption public key is invalid")]
+    InvalidEncryptionPk,
+    #[error("Decryption secret has bad length")]
+    DecryptionSkBadLength,
+    #[error("Decryption secret key is invalid")]
+    DecryptionSkInvalid,
+    #[error("Second level encryption is invalid")]
+    InvalidSLE,
+    #[error("First level encryption is invalid")]
+    InvalidFLE,
+    #[error("Reencryption key has bad length")]
+    ReencKeyBadLength,
+    #[error("Reencryption key is invalid")]
+    ReencKeyParseFailed,
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -1,17 +1,16 @@
+use crate::{
+    DecryptionSecretKey, EncryptionPublicKey, Error, FirstLevelEncryption, Message, ReencKey,
+    SecondLevelEncryption,
+};
 use aes_gcm::{
     aead::{consts::U12, Aead},
     Aes128Gcm, NewAead, Nonce,
 };
 use rand::RngCore;
 
-use crate::{
-    DecryptionSecretKey, EncryptionPublicKey, Error, FirstLevelEncryption, Message, ReencKey,
-    SecondLevelEncryption,
-};
-
 pub struct AfghEncryption {
     sl: SecondLevelEncryption,
-    nonce: Nonce<U12>,
+    nonce: [u8; 12],
     ciphertext: Vec<u8>,
 }
 
@@ -27,7 +26,7 @@ impl AfghEncryption {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() < Self::HEADER_SIZE {
-            return Err(Error::AfghEncParseFailed);
+            return Err(Error::HeaderBadLength);
         }
         let sl: Option<_> = SecondLevelEncryption::from_bytes(
             &bytes[..SecondLevelEncryption::BYTES]
@@ -35,16 +34,53 @@ impl AfghEncryption {
                 .expect("Checked length, QED"),
         )
         .into();
-        let sl = sl.ok_or(Error::AfghEncParseFailed)?;
-        let nonce = <Nonce<U12>>::clone_from_slice(
-            &bytes[SecondLevelEncryption::BYTES..SecondLevelEncryption::BYTES + 12],
-        );
+        let sl = sl.ok_or(Error::InvalidSLE)?;
         Ok(Self {
             sl,
-            nonce,
+            nonce: bytes[SecondLevelEncryption::BYTES..SecondLevelEncryption::BYTES + 12]
+                .try_into()
+                .unwrap(),
             ciphertext: bytes[..Self::HEADER_SIZE].to_vec(),
         })
     }
+}
+
+pub struct AfghReEncryption {
+    fl: FirstLevelEncryption,
+    nonce: [u8; 12],
+    ciphertext: Vec<u8>,
+}
+impl AfghReEncryption {
+    const HEADER_SIZE: usize = FirstLevelEncryption::BYTES + 12;
+
+    pub fn to_bytes(mut self) -> Vec<u8> {
+        let mut header = [self.fl.to_bytes().as_slice(), self.nonce.as_slice()]
+            .concat()
+            .to_vec();
+        header.append(&mut self.ciphertext);
+        header
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        if bytes.len() < Self::HEADER_SIZE {
+            return Err(Error::HeaderBadLength);
+        }
+        let fl: Option<_> = FirstLevelEncryption::from_bytes(
+            &bytes[..FirstLevelEncryption::BYTES]
+                .try_into()
+                .expect("Checked length, QED"),
+        )
+        .into();
+        let fl = fl.ok_or(Error::InvalidFLE)?;
+        Ok(Self {
+            fl,
+            nonce: bytes[FirstLevelEncryption::BYTES..FirstLevelEncryption::BYTES + 12]
+                .try_into()
+                .unwrap(),
+            ciphertext: bytes[..Self::HEADER_SIZE].to_vec(),
+        })
+    }
+
 }
 
 pub fn afgh_encrypt(
@@ -54,27 +90,20 @@ pub fn afgh_encrypt(
 ) -> Result<AfghEncryption, Error> {
     let m = Message::random(&mut rng);
     let sl = SecondLevelEncryption::encrypt(&m, pk, &mut rng);
-    let aes_key = m.derive_aes_key();
+    let key = m.derive_aes_key();
+    let mut nonce = [0u8; 12];
+    rng.fill_bytes(&mut nonce);
 
-    let cipher = Aes128Gcm::new(&aes_key.into());
-    let mut nonce_bytes = [0u8; 12];
-    rng.fill_bytes(&mut nonce_bytes);
-    let nonce: Nonce<U12> = nonce_bytes.into();
-
+    let cipher = Aes128Gcm::new(&key.into());
     let ciphertext = cipher
-        .encrypt(&nonce, cleartext)
+        .encrypt(Nonce::from_slice(&nonce), cleartext)
         .map_err(|_| Error::AESError)?;
+
     Ok(AfghEncryption {
         sl,
         nonce,
         ciphertext,
     })
-}
-
-pub struct AfghReEncryption {
-    fl: FirstLevelEncryption,
-    nonce: Nonce<U12>,
-    ciphertext: Vec<u8>,
 }
 
 pub fn afgh_re_encrypt(afghe: AfghEncryption, rk: &ReencKey) -> AfghReEncryption {
@@ -92,16 +121,14 @@ pub fn afgh_re_decrypt(re: AfghReEncryption, sk: &DecryptionSecretKey) -> Result
 
     let cipher = Aes128Gcm::new(&aes_key.into());
     cipher
-        .decrypt(&re.nonce, &*re.ciphertext)
+        .decrypt(<Nonce<U12>>::from_slice(&re.nonce), &*re.ciphertext)
         .map_err(|_| Error::AESError)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        afgh_encrypt, afgh_re_decrypt, afgh_re_encrypt, DecryptionSecretKey, EncryptionSecretKey,
-        ReencKey,
-    };
+    use super::{afgh_encrypt, afgh_re_decrypt, afgh_re_encrypt};
+    use crate::{DecryptionSecretKey, EncryptionSecretKey, ReencKey};
 
     #[test]
     fn test_aes() {
