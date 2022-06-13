@@ -1,4 +1,4 @@
-module github.com/elv-will/elv-afgh
+module github.com/elv-will/elv-encryption
 
 go 1.18
 

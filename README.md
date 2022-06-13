@@ -1,9 +1,18 @@
-# ELV-AFGH
-This is an implementation of the [AFGH Proxy Re-Encryption Scheme](https://web.archive.org/web/20220313022340/https://eprint.iacr.org/2005/028.pdf) for Eluvio's Content Fabric.
+# elv-encryption
+This repository implements a couple types of encryption used in Eluvio's content fabric.
+
+| Feature                  | Rust impl     | Go impl |
+| ------------------------ | ------------- | ------- |
+| AFGH Proxy Re-Encryption | `elv-afgh-rs` | `qafgh` |
+| Secp256k1-based HPKE     | `elv-hpke-rs`    | `qhpke` |
+
+## elv-afgh-rs
+
+`elv-afgh-rs` is an implementation of the [AFGH Proxy Re-Encryption Scheme](https://web.archive.org/web/20220313022340/https://eprint.iacr.org/2005/028.pdf) for Eluvio's Content Fabric.
 
 BLS12-381 is chosen as the underlying curve specification used. Rust and golang implementations are provided. 
 
-## Implementation 
+### Details 
 
 The following choices are made for the cryptoscheme provided in the paper. Additive group notation is used.
 FLE/SLE stand for First/Second Level Encryption.
