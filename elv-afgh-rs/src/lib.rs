@@ -7,9 +7,6 @@ use rand::RngCore;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
-#[cfg(feature = "aes")]
-pub mod aes;
-
 mod key;
 pub use key::*;
 use subtle::CtOption;

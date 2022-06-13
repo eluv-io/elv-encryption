@@ -17,8 +17,6 @@ getrandom = {version = "0.2", default-features = false}
 cfg-if = "1.0"
 hpke = {git = "https://github.com/Aphoh/rust-hpke-secp", features = ["k256"]}
 
-# std libs
-aes-gcm = { version = "0.9.4", optional = true}
 # wasm libs
 wasm-bindgen = {version = "0.2", optional = true }
 
@@ -27,7 +25,6 @@ hex = "0.4"
 hex-literal = "0.3"
 
 [features]
-aes = ["aes-gcm"]
 wasm = ["wasm-bindgen", "getrandom/js"]
 
 

@@ -238,7 +238,6 @@ dependencies = [
 name = "elv-afgh"
 version = "0.1.0"
 dependencies = [
- "aes-gcm",
  "bls12_381",
  "cfg-if",
  "getrandom",

@@ -1,6 +1,7 @@
 package qafgh
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 
@@ -12,6 +13,19 @@ const MessageSize = compressedGtSize
 
 type Message struct {
 	m bls12381.GT
+}
+
+func (msg *Message) DeriveAESKey() ([]byte, error) {
+	dst := []byte("ELV_AFGH_MSG")
+	msgBytes := msg.ToBytes()
+	dst = append(dst, msgBytes[:]...)
+	hasher := sha256.New()
+	_, err := hasher.Write(dst)
+	if err != nil {
+		return nil, err
+	}
+	// Take first 16 bytes of hash
+	return hasher.Sum(nil)[:16], nil
 }
 
 func (msg *Message) ToBytes() [MessageSize]byte {
