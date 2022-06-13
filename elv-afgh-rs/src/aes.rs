@@ -34,7 +34,7 @@ impl AfghEncryption {
                 .expect("Checked length, QED"),
         )
         .into();
-        let sl = sl.ok_or(Error::InvalidSLE)?;
+        let sl = sl.ok_or(Error::SLEParseFailed)?;
         Ok(Self {
             sl,
             nonce: bytes[SecondLevelEncryption::BYTES..SecondLevelEncryption::BYTES + 12]
@@ -71,7 +71,7 @@ impl AfghReEncryption {
                 .expect("Checked length, QED"),
         )
         .into();
-        let fl = fl.ok_or(Error::InvalidFLE)?;
+        let fl = fl.ok_or(Error::FLEParseFailed)?;
         Ok(Self {
             fl,
             nonce: bytes[FirstLevelEncryption::BYTES..FirstLevelEncryption::BYTES + 12]

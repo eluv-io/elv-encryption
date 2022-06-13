@@ -7,6 +7,7 @@ use rand::RngCore;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+#[cfg(feature = "aes")]
 pub mod aes;
 
 mod key;
@@ -14,7 +15,7 @@ pub use key::*;
 use subtle::CtOption;
 
 #[derive(thiserror::Error, Debug)]
-#[repr(u8)]
+#[cfg_attr(feature = "wasm", repr(u8))]
 pub enum Error {
     #[error("Divided by zero")]
     DivideByZero,
@@ -32,18 +33,22 @@ pub enum Error {
     HeaderBadLength,
     #[error("Encryption public key is invalid")]
     InvalidEncryptionPk,
-    #[error("Decryption secret has bad length")]
-    DecryptionSkBadLength,
     #[error("Decryption secret key is invalid")]
     DecryptionSkInvalid,
-    #[error("Second level encryption is invalid")]
-    InvalidSLE,
-    #[error("First level encryption is invalid")]
-    InvalidFLE,
-    #[error("Reencryption key has bad length")]
-    ReencKeyBadLength,
-    #[error("Reencryption key is invalid")]
+    #[error("Decryption secret has bad length")]
+    DecryptionSkBadLength,
+    #[error("Second level encryption parse failed")]
+    SLEParseFailed,
+    #[error("Second level encryption invalid length")]
+    SLEInvalidLength,
+    #[error("First level encryption parse failed")]
+    FLEParseFailed,
+    #[error("First level encryption invalid length")]
+    FLEInvalidLength,
+    #[error("Reencryption key parse failed")]
     ReencKeyParseFailed,
+    #[error("Reencryption key invalid length")]
+    ReencKeyBadLength,
 }
 
 #[derive(Debug, PartialEq, Eq)]
