@@ -1,14 +1,15 @@
 # elv-encryption
 This repository implements a couple types of encryption used in Eluvio's content fabric.
 
-| Feature                  | Rust impl     | Go impl |
-| ------------------------ | ------------- | ------- |
-| AFGH Proxy Re-Encryption | `elv-afgh-rs` | `qafgh` |
-| Secp256k1-based HPKE     | `elv-hpke-rs`    | `qhpke` |
+| Feature                  | Rust impl           | Go impl |
+| ------------------------ | ------------------- | ------- |
+| AFGH Proxy Re-Encryption | `elv-encryption-rs` | `qafgh` |
+| Secp256k1-based HPKE     | `elv-encryption-rs` | `qhpke` |
 
-## elv-afgh-rs
 
-`elv-afgh-rs` is an implementation of the [AFGH Proxy Re-Encryption Scheme](https://web.archive.org/web/20220313022340/https://eprint.iacr.org/2005/028.pdf) for Eluvio's Content Fabric.
+## AFGH
+
+Contained in `elv-afgh-rs` is an implementation of the [AFGH Proxy Re-Encryption Scheme](https://web.archive.org/web/20220313022340/https://eprint.iacr.org/2005/028.pdf) for Eluvio's Content Fabric.
 
 BLS12-381 is chosen as the underlying curve specification used. Rust and golang implementations are provided. 
 
@@ -35,3 +36,8 @@ Notably, $\mathbb{G1}$ and $\mathbb{G2}$ are chosen such that we minimize the si
 * GT elements are compressed using Torus based compression and serialized as FP6 elements in big endian form.
 
 
+## HPKE
+
+[Hybrid public key encryption](https://datatracker.ietf.org/doc/rfc9180/) is a standard which allows for encryption of data for a specific public key. 
+It is very similarly to afgh, since it has a shared secret that derives an AES key which encrypts data, but does so without the ability for a proxy to re-encrypt that data for a third party. 
+The implementation given uses a fork of [rust-hpke](https://github.com/rozbb/rust-hpke) and [Cloudflare's circl](https://github.com/cloudflare/circl) which include the option to use `secp256k1` keys, as that curve is not present in the spec, but is still reasonable to use. 
