@@ -11,8 +11,6 @@ getrandom = {version = "0.2", default-features = false}
 rand = { version = "0.8" }
 hpke = {git = "https://github.com/Aphoh/rust-hpke-secp", default-features = false, features = ["k256"]}
 k256 = "*"
-thiserror = "1"
-snafu = "0.7"
 
 # wasm libs
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -23,11 +21,10 @@ getrandom = {version = "0.2", features = ["js"]}
 hex = "0.4"
 hex-literal = "0.3"
 
-
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# wasm-pack flags
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ['-Oz', '-g']
+wasm-opt = ['-Oz']
 
