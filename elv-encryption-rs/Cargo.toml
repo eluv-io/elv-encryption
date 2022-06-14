@@ -1,0 +1,33 @@
+[package]
+name = "elv-encryption"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+elv-afgh = {path = "../elv-afgh-rs"}
+getrandom = {version = "0.2", default-features = false}
+rand = { version = "0.8" }
+hpke = {git = "https://github.com/Aphoh/rust-hpke-secp", default-features = false, features = ["k256"]}
+k256 = "*"
+thiserror = "1"
+snafu = "0.7"
+
+# wasm libs
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+getrandom = {version = "0.2", features = ["js"]}
+
+[dev-dependencies]
+hex = "0.4"
+hex-literal = "0.3"
+
+
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ['-Oz', '-g']
+

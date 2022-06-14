@@ -34,6 +34,10 @@ pub enum Error {
     DecryptionSkInvalid,
     #[error("Decryption secret has bad length")]
     DecryptionSkBadLength,
+    #[error("Encryption secret key is invalid")]
+    EncryptionSkInvalid,
+    #[error("Encryption secret has bad length")]
+    EncryptionSkBadLength,
     #[error("Second level encryption parse failed")]
     SLEParseFailed,
     #[error("Second level encryption invalid length")]
